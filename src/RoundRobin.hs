@@ -16,27 +16,13 @@ data Survey = Survey
 roundRobin :: [Survey] -> Survey
 roundRobin l = snd . maximum $ map foo l
   where
-    foo s = (staticWeight * dynamicWeight, s)
+    totalQuota = sum $ map surveyOverallQuota l
+    totalRank = sum $ map surveyRank l
+    foo s@Survey{..} = (w * a, s)
       where
-        staticWeight = getStaticWeight (length l + 1) s
-        dynamicWeight = getDynamicWeight s
-
--- l = 5
--- r = 2, 1, 3, 0
---   = 3, 4, 2, 1
-getStaticWeight :: Int -> Survey -> Double
-getStaticWeight n Survey{..} = fromIntegral $ n - rank
-  where
-    rank = if surveyRank /= 0 then surveyRank else n - 1
-
--- q = 100, 100,  80, 150
--- s =   0,   0,   0,   0
---   =   1,   1,   1,   1
-getDynamicWeight :: Survey -> Double
-getDynamicWeight Survey{..} =
-  let n = fromIntegral surveyRespondentStarted / fromIntegral surveyOverallQuota
-  in if n == 0 then 0.001 else
-     if n == 1 then 0 else n
+        surveyQuotaLeft = 1 - (fromIntegral surveyRespondentStarted / fromIntegral surveyOverallQuota)
+        w = surveyQuotaLeft * (fromIntegral surveyOverallQuota / fromIntegral totalQuota)
+        a = fromIntegral surveyRank / fromIntegral totalRank
 
 updateSurvey :: Survey -> Survey
 updateSurvey Survey{..} = Survey
@@ -47,14 +33,17 @@ updateSurvey Survey{..} = Survey
   surveyRank
 
 testRR :: [Int]
-testRR = rrSurveys 300 generateSurveys
+-- testRR = rrSurveys 480 generateSurveys
+testRR = rrSurveys 800 generateSurveys
 
 rrSurveys :: Int -> [Survey] -> [Int]
 rrSurveys 0 _ = []
-rrSurveys n surveys =
-  let rrSurvey = roundRobin surveys
-      updatedSurveys = updateSurvey rrSurvey : filter (rrSurvey /=) surveys
-  in surveyId rrSurvey : rrSurveys (n - 1) updatedSurveys
+rrSurveys _ [] = []
+rrSurveys n surveys = surveyId rrSurvey : rrSurveys (n - 1) updatedSurveys
+  where
+    rrSurvey = roundRobin surveys
+    updatedSurveys = updateSurvey rrSurvey : filter foo surveys
+    foo survey = rrSurvey /= survey
 
 generateSurveys :: [Survey]
 generateSurveys =
@@ -82,11 +71,26 @@ generateSurveys =
   , Survey
     { surveyId                = 4
     , surveyScore             = 0.7
-    , surveyOverallQuota      = 150
+    , surveyOverallQuota      = 200
     , surveyRespondentStarted = 0
-    , surveyRank              = 0
+    , surveyRank              = 4
     }
   ]
 
 randomSurvey :: IO Survey
 randomSurvey = undefined
+
+
+
+{-
+totalQuota = sum . map surveyOverallQuota surveys
+totalLoad = sum . map surveyRank surveys
+
+for survey in surveys:
+  surveyQuotaLeft = 1 - (surveyRespondentStarted survey / surveyOverallQuota survey)
+  w = surveyQuotaLeft * (surveyOverallQuota survey / totalQuota)
+  a = rank survey / totalRank
+  wc = w * a
+
+maximum wc
+-}
