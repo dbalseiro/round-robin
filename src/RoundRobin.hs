@@ -4,6 +4,7 @@ module RoundRobin where
 
 import           Control.Monad
 import           Data.Ord
+import           System.Random
 
 data Survey = Survey
   { surveyId                :: Int
@@ -23,18 +24,27 @@ getStaticWeight l Survey{..} = fromIntegral $ l - (if surveyRank == 0 then l els
 getDynamicWeight :: Survey -> Double
 getDynamicWeight Survey{..} = 1 - fromIntegral surveyRespondentStarted / fromIntegral surveyOverallQuota
 
-roundRobin2 :: [Survey] -> Survey
-roundRobin2 =
+roundRobin2 :: [Survey] -> IO Survey
+roundRobin2 = do
   let totalRank = sum (map surveyRank generateSurveys)
       totalQuotaPercentage s = (fromIntegral $ surveyOverallQuota s) / fromIntegral (sum (map surveyOverallQuota generateSurveys))
-      weight = getStaticWeight (length generateSurveys + 1) / fromIntegral totalRank
-      load s = (getDynamicWeight s * totalQuotaPercentage)
-   in snd . maximum . map (\s ->
-                              let w = load s * weight s
-                               in (w, s { surveyWeight = Just w
-                                        , surveyRespondentStarted = surveyRespondentStarted s + 1
-                                        }
-                              ))
+      weight s = (getStaticWeight (length generateSurveys + 1) s) / fromIntegral totalRank
+      load s = (getDynamicWeight s * totalQuotaPercentage s)
+
+  fmap snd . selectSurvey . map (\s -> let w = load s * weight s
+                                       in (w, s { surveyWeight = Just w
+                                                , surveyRespondentStarted = surveyRespondentStarted s + 1
+                                                }
+                                          )
+                                )
+
+selectSurvey :: [(Double, Survey)] -> IO (Double, Survey)
+selectSurvey surveys = do
+  putStrLn $ show surveys
+  let surveys' = foldr (\s@(d, ss) a -> if a == [] then s:a else (d + (fst $ head a), ss):a) [] surveys
+  r <- randomRIO (0, maximum (map fst surveys'))
+  putStrLn $ show r
+  return $ head $ dropWhile ((< r) . fst) surveys
 
 
 prettyPrintSurvey :: Survey -> IO ()
@@ -42,15 +52,18 @@ prettyPrintSurvey Survey{..} = do
   putStrLn
     $  "ID="
     ++ show surveyId
-    ++ " Corrected="
+    ++ "\tWeight="
     ++ show surveyWeight
+    ++ "\tRespondents="
+    ++ show surveyRespondentStarted
 
 rrSurveys :: Int -> [Survey] -> IO [Survey]
 rrSurveys 0 _ = return []
 rrSurveys i ss = do
-  let rrs = roundRobin2 ss
-      rest = filter ((/= surveyId rrs) . surveyId) ss
+  rrs <- roundRobin2 ss
+  let rest = filter ((/= surveyId rrs) . surveyId) ss
 
+  putStrLn $ "Run " ++ show i
   mapM_ prettyPrintSurvey ss
   putStrLn "-------------------------------------------------"
   rrSurveys (i - 1) (rrs:rest)
@@ -61,14 +74,6 @@ updateSurvey s = s
 
 testRR :: Int -> IO ()
 testRR n = void $ rrSurveys n generateSurveys
-
-prettyPrint :: Survey -> IO ()
-prettyPrint survey = return ()
-    {-putStrLn-}
-      {-$  "ID="-}
-      {-++ show (surveyId survey)-}
-
-
 
 generateSurveys :: [Survey]
 generateSurveys =
