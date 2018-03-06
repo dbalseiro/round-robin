@@ -29,10 +29,10 @@ roundRobin2 = do
   let totalRank = sum (map surveyRank generateSurveys)
       totalQuotaPercentage s = (fromIntegral $ surveyOverallQuota s) / fromIntegral (sum (map surveyOverallQuota generateSurveys))
       weight s = (getStaticWeight (length generateSurveys + 1) s) / fromIntegral totalRank
-      load s = (getDynamicWeight s * totalQuotaPercentage s)
+      load s = getDynamicWeight s
 
   selectSurveyMax . map (\s ->
-                              let w = load s * weight s
+                              let w = weight s * load s
                                in (w, s { surveyWeight = Just w
                                       , surveyRespondentStarted = surveyRespondentStarted s + 1
                                       }
@@ -59,8 +59,6 @@ prettyPrintSurvey Survey{..} = do
   putStrLn
     $  "ID="
     ++ show surveyId
-    ++ "\tWeight="
-    ++ show surveyWeight
     ++ "\tRespondents="
     ++ show surveyRespondentStarted
 
@@ -88,7 +86,7 @@ generateSurveys =
   [ Survey
     { surveyId                = 1
     , surveyScore             = 1.1
-    , surveyOverallQuota      = 100
+    , surveyOverallQuota      = 10
     , surveyRespondentStarted = 0
     , surveyRank              = 2
     , surveyWeight            = Nothing
@@ -96,7 +94,7 @@ generateSurveys =
   , Survey
     { surveyId                = 2
     , surveyScore             = 1.2
-    , surveyOverallQuota      = 100
+    , surveyOverallQuota      = 20
     , surveyRespondentStarted = 0
     , surveyRank              = 1
     , surveyWeight            = Nothing
@@ -104,7 +102,7 @@ generateSurveys =
   , Survey
     { surveyId                = 3
     , surveyScore             = 1.1
-    , surveyOverallQuota      = 100
+    , surveyOverallQuota      = 30
     , surveyRespondentStarted = 0
     , surveyRank              = 3
     , surveyWeight            = Nothing
