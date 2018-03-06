@@ -31,20 +31,27 @@ roundRobin2 = do
       weight s = (getStaticWeight (length generateSurveys + 1) s) / fromIntegral totalRank
       load s = (getDynamicWeight s * totalQuotaPercentage s)
 
-  fmap snd . selectSurvey . map (\s -> let w = load s * weight s
-                                       in (w, s { surveyWeight = Just w
-                                                , surveyRespondentStarted = surveyRespondentStarted s + 1
-                                                }
-                                          )
+  selectSurveyMax . map (\s ->
+                              let w = load s * weight s
+                               in (w, s { surveyWeight = Just w
+                                      , surveyRespondentStarted = surveyRespondentStarted s + 1
+                                      }
                                 )
+                     )
 
-selectSurvey :: [(Double, Survey)] -> IO (Double, Survey)
+selectSurveyMax :: [(Double, Survey)] -> IO Survey
+selectSurveyMax = return . snd . maximum
+
+selectSurvey :: [(Double, Survey)] -> IO Survey
 selectSurvey surveys = do
-  putStrLn $ show surveys
-  let surveys' = foldr (\s@(d, ss) a -> if a == [] then s:a else (d + (fst $ head a), ss):a) [] surveys
-  r <- randomRIO (0, maximum (map fst surveys'))
-  putStrLn $ show r
-  return $ head $ dropWhile ((< r) . fst) surveys
+  r <- randomRIO (0, sum (map fst surveys))
+  return $ selectSurvey' r 0 surveys
+
+selectSurvey' :: Double -> Double -> [(Double, Survey)] -> Survey
+selectSurvey' _ _ [] = error "No more surveys"
+selectSurvey' rnd acum ((weight, survey):xs)
+  | acum + weight > rnd = survey
+  | otherwise = selectSurvey' rnd (acum + weight) xs
 
 
 prettyPrintSurvey :: Survey -> IO ()
@@ -63,9 +70,10 @@ rrSurveys i ss = do
   rrs <- roundRobin2 ss
   let rest = filter ((/= surveyId rrs) . surveyId) ss
 
-  putStrLn $ "Run " ++ show i
-  mapM_ prettyPrintSurvey ss
-  putStrLn "-------------------------------------------------"
+  {-putStrLn $ "Run " ++ show i-}
+  {-mapM_ prettyPrintSurvey ss-}
+  {-putStrLn "-------------------------------------------------"-}
+  prettyPrintSurvey rrs
   rrSurveys (i - 1) (rrs:rest)
 
 updateSurvey :: Survey -> Survey
